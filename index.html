@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#4a90e2">
+  <meta name="description" content="기상청 단기예보 기반 오늘의 옷차림 추천">
+  <title>오늘 뭐 입지?</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-clear">
+  <div class="app">
+    <header class="topbar">
+      <h1>오늘 뭐 입지?</h1>
+      <div class="topbar-actions">
+        <button id="refreshBtn" class="icon-btn" type="button" aria-label="새로고침">↻</button>
+        <button id="settingsBtn" class="text-btn" type="button">설정</button>
+      </div>
+    </header>
+
+    <div id="demoBanner" class="demo-banner" hidden>🧪 예시 데이터 · 실제 날씨가 아니에요</div>
+
+    <div class="location">
+      <span class="pin">📍</span>
+      <select id="citySelect" aria-label="지역 선택"></select>
+      <span id="placeLabel" class="place-label"></span>
+    </div>
+
+    <section id="status" class="card status" hidden></section>
+
+    <main id="main" hidden>
+      <section class="card hero">
+        <div class="hero-top">
+          <div id="skyEmoji" class="sky-emoji">☀️</div>
+          <div>
+            <div id="curTemp" class="cur-temp">--°</div>
+            <div id="skyLabel" class="sky-label"></div>
+          </div>
+        </div>
+        <div class="hero-sub">
+          <span>체감 <b id="feels">--°</b></span>
+          <span>최저 <b id="tMin">--°</b></span>
+          <span>최고 <b id="tMax">--°</b></span>
+        </div>
+      </section>
+
+      <section class="card outfit">
+        <h2>오늘의 옷차림 <small id="band"></small></h2>
+        <p id="summary" class="summary"></p>
+        <ul class="pieces">
+          <li><span id="topEmoji" class="piece-emoji"></span><div><small>상의</small><div id="topText"></div></div></li>
+          <li><span id="bottomEmoji" class="piece-emoji"></span><div><small>하의</small><div id="bottomText"></div></div></li>
+          <li><span id="outerEmoji" class="piece-emoji"></span><div><small>겉옷</small><div id="outerText"></div></div></li>
+        </ul>
+        <ul id="tips" class="tips"></ul>
+      </section>
+
+      <section class="card details">
+        <div class="detail"><small>습도</small><b id="humidity">--</b></div>
+        <div class="detail"><small>바람</small><b id="wind">--</b></div>
+        <div class="detail"><small>현재 강수</small><b id="precipNow">--</b></div>
+        <div class="detail"><small>강수확률</small><b id="pop">--</b></div>
+      </section>
+
+      <section class="card hourly-card">
+        <h2>시간별 예보</h2>
+        <div id="hourly" class="hourly"></div>
+      </section>
+
+      <p id="updated" class="updated"></p>
+    </main>
+
+    <section id="settings" class="card settings" hidden>
+      <h2>인증키 설정</h2>
+      <p class="help">
+        <a href="https://www.data.go.kr/data/15084084/openapi.do" target="_blank" rel="noopener">공공데이터포털</a>에서
+        「기상청_단기예보 조회서비스」 활용신청 후 받은 <b>일반 인증키 (Decoding)</b>를 입력하세요.
+        키는 이 기기(브라우저)에만 저장돼요.
+      </p>
+      <form id="settingsForm" autocomplete="off">
+        <label for="keyInput">공공데이터포털 인증키 (Decoding)</label>
+        <input id="keyInput" type="text" spellcheck="false" autocapitalize="off" placeholder="인증키를 붙여넣으세요">
+        <p id="settingsMsg" class="settings-msg" role="status"></p>
+        <div class="settings-actions">
+          <button type="submit" class="primary-btn">저장</button>
+          <button id="resetKeyBtn" type="button" class="ghost-btn">기본 키 사용</button>
+          <button id="cancelSettingsBtn" type="button" class="ghost-btn">닫기</button>
+        </div>
+      </form>
+      <p class="help small">키 없이 둘러보려면 <a href="?demo=1">예시 데이터로 보기</a></p>
+    </section>
+
+    <footer class="footer">자료: 기상청 단기예보 (공공데이터포털)</footer>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="lib.js"></script>
+  <script src="sample-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
