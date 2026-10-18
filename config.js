@@ -1,1 +1,1 @@
-window.KMA_EMBEDDED_KEY = "__KMA_KEY__";
+window.KMA_EMBEDDED_KEY = "fa7ca9b9ee9b90155c00066e1184fe10685cb19bc5b4bc35d81724efdf6d63f1";
