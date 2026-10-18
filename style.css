@@ -81,16 +81,89 @@ body.theme-night    { background: linear-gradient(170deg, #141e30 0%, #243b55 60
   margin: 10px 2px 12px;
   color: #fff;
 }
-.location select {
-  font: inherit;
-  font-size: 0.95rem;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.9);
-  border: 0;
-  border-radius: 10px;
-  padding: 6px 8px;
+.place-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.95;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
-.place-label { font-size: 0.85rem; opacity: 0.95; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
+.location-actions { display: flex; gap: 6px; margin-left: auto; }
+.chip-btn {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(20, 40, 80, 0.12);
+}
+.chip-btn:active { transform: scale(0.96); }
+
+.search-panel { padding: 12px; }
+.search-note { margin: 2px 4px 10px; font-size: 0.85rem; color: #8a5a00; line-height: 1.45; }
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 2px solid var(--accent);
+  border-radius: 14px;
+  padding: 0 6px 0 12px;
+}
+.search-icon { font-size: 1rem; opacity: 0.7; }
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px; /* iOS 확대 방지 */
+  padding: 12px 0;
+  color: var(--text);
+}
+.search-box input::-webkit-search-cancel-button { display: none; }
+.search-close {
+  border: 0;
+  background: #eef2f7;
+  color: var(--muted);
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.suggestions {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 55vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.suggestion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 12px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.suggestion + .suggestion { margin-top: 2px; }
+.suggestion b { font-size: 1rem; }
+.suggestion small { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+.suggestion.active, .suggestion:active { background: #e6efff; }
+@media (hover: hover) { .suggestion:hover { background: #eef4ff; } }
+.suggestion-hint { padding: 12px; color: var(--muted); font-size: 0.88rem; text-align: center; }
 
 .card {
   background: var(--card);

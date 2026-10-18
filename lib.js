@@ -54,6 +54,142 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 전국 시·군·구 검색 (regions.js: [이름, 시도, 시도약칭, 위도, 경도])
+  // ---------------------------------------------------------------------------
+  var CHOSEONG = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+
+  function normalizeQuery(s) { return String(s || '').replace(/\s+/g, ''); }
+
+  function isChoseong(ch) { return CHOSEONG.indexOf(ch) >= 0; }
+
+  function choseongOf(ch) {
+    var c = ch.charCodeAt(0) - 0xAC00;
+    return c >= 0 && c < 11172 ? CHOSEONG[Math.floor(c / 588)] : ch;
+  }
+
+  // '광양시' -> '광양', '수원시 팔달구' -> '수원팔달'. 한 글자만 남으면('중구') 그대로 둔다.
+  function stripSuffix(name) {
+    return name.split(' ').map(function (t) {
+      return t.length > 2 && /[시군구]$/.test(t) ? t.slice(0, -1) : t;
+    }).join('');
+  }
+
+  // 원본 배열 -> 지역 객체. 구로 나뉜 시(수원시 등)는 구 좌표 평균으로 상위 시를 합성한다.
+  function buildRegions(raw) {
+    var list = raw.map(function (r) {
+      return { name: r[0], sido: r[1], sidoShort: r[2], lat: r[3], lon: r[4] };
+    });
+    var parents = {};
+    list.forEach(function (r) {
+      var sp = r.name.indexOf(' ');
+      if (sp < 0) return;
+      var pname = r.name.slice(0, sp);
+      var id = r.sidoShort + ' ' + pname;
+      var p = parents[id] || (parents[id] = { name: pname, sido: r.sido, sidoShort: r.sidoShort, lat: 0, lon: 0, n: 0 });
+      p.lat += r.lat; p.lon += r.lon; p.n++;
+    });
+    Object.keys(parents).forEach(function (id) {
+      var p = parents[id];
+      list.push({ name: p.name, sido: p.sido, sidoShort: p.sidoShort,
+        lat: round4(p.lat / p.n), lon: round4(p.lon / p.n), synthetic: true });
+    });
+    var count = {};
+    list.forEach(function (r) { count[r.name] = (count[r.name] || 0) + 1; });
+    list.forEach(function (r) {
+      r.id = r.sidoShort + ' ' + r.name;
+      r.dup = count[r.name] > 1;
+      var n = normalizeQuery(r.name), st = stripSuffix(r.name);
+      // [검색 키, 키 종류(0: 이름, 1: 시도약칭+이름, 2: 시도+이름)]
+      r.keys = [[n, 0], [st, 0],
+        [r.sidoShort + n, 1], [r.sidoShort + st, 1], [r.sido + n, 2], [r.sido + st, 2]];
+    });
+    return list;
+  }
+
+  function round4(x) { return Math.round(x * 10000) / 10000; }
+
+  // 원본 배열이 들어오면 한 번만 변환해 캐시
+  var regionCache = [];
+  function toRegions(regions) {
+    if (!regions || !regions.length || !Array.isArray(regions[0])) return regions || [];
+    for (var i = 0; i < regionCache.length; i++) if (regionCache[i][0] === regions) return regionCache[i][1];
+    var built = buildRegions(regions);
+    regionCache.push([regions, built]);
+    return built;
+  }
+
+  // 초성이 섞인 질의('ㄱㅇ', '광ㅇ')를 위한 글자 단위 비교
+  function jamoIndexOf(target, q) {
+    for (var i = 0; i + q.length <= target.length; i++) {
+      var j = 0;
+      while (j < q.length && (target[i + j] === q[j] ||
+        (isChoseong(q[j]) && choseongOf(target[i + j]) === q[j]))) j++;
+      if (j === q.length) return i;
+    }
+    return -1;
+  }
+
+  // 순위: 0 이름 일치 > 1 앞부분 일치 > 2 포함 > 3 초성. 같은 단계면 이름 키가 시도 키보다 앞선다.
+  // 시도 전체 이름 키는 앞부분 일치만 본다('광역'이 모든 광역시 구에 걸리지 않도록).
+  function matchScore(r, q, jamo) {
+    var best = Infinity;
+    for (var i = 0; i < r.keys.length; i++) {
+      var k = r.keys[i][0], kind = r.keys[i][1], tier;
+      if (kind === 2 && (jamo || k.indexOf(q) !== 0)) continue;
+      if (jamo) {
+        var at = jamoIndexOf(k, q);
+        if (at < 0) continue;
+        tier = 3 + (at === 0 ? 0 : 0.5);
+      } else if (k === q) tier = 0;
+      else if (k.indexOf(q) === 0) tier = 1;
+      else if (k.indexOf(q) > 0) tier = 2;
+      else continue;
+      best = Math.min(best, tier * 10 + kind);
+    }
+    return best;
+  }
+
+  function searchRegions(query, regions, limit) {
+    var q = normalizeQuery(query);
+    if (!q) return [];
+    if (limit === undefined) limit = 8;
+    var jamo = /[ㄱ-ㅎ]/.test(q);
+    var hits = [];
+    toRegions(regions).forEach(function (r) {
+      var s = matchScore(r, q, jamo);
+      if (s < Infinity) hits.push({ r: r, s: s });
+    });
+    hits.sort(function (a, b) {
+      return a.s - b.s || a.r.name.length - b.r.name.length ||
+        (a.r.name < b.r.name ? -1 : a.r.name > b.r.name ? 1 : 0) ||
+        (a.r.sidoShort < b.r.sidoShort ? -1 : a.r.sidoShort > b.r.sidoShort ? 1 : 0);
+    });
+    return hits.slice(0, limit).map(function (h) { return h.r; });
+  }
+
+  // 여러 시도에 같은 이름이 있으면('중구') 시도 약칭을 붙인다. 나머지는 이름만(시도는 부제목).
+  function displayName(region) {
+    return region.dup ? region.sidoShort + ' ' + region.name : region.name;
+  }
+
+  function findRegion(id, regions) {
+    var list = toRegions(regions);
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+
+  // 합성된 상위 시보다 실제 구 중심이 더 정확하므로 제외
+  function nearestRegion(lat, lon, regions) {
+    var best = null, bestD = Infinity;
+    toRegions(regions).forEach(function (r) {
+      if (r.synthetic) return;
+      var d = distanceKm(lat, lon, r.lat, r.lon);
+      if (d < bestD) { bestD = d; best = r; }
+    });
+    return best;
+  }
+
+  // ---------------------------------------------------------------------------
   // 위경도 -> 기상청 격자 (LCC, 기상청 공식 변환식)
   // ---------------------------------------------------------------------------
   function latLonToGrid(lat, lon) {
@@ -648,6 +784,11 @@
     CITIES: CITIES,
     nearestCity: nearestCity,
     distanceKm: distanceKm,
+    buildRegions: buildRegions,
+    searchRegions: searchRegions,
+    displayName: displayName,
+    findRegion: findRegion,
+    nearestRegion: nearestRegion,
     latLonToGrid: latLonToGrid,
     kstParts: kstParts,
     kstDateStr: kstDateStr,

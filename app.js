@@ -4,11 +4,12 @@
 
   var L = window.WeatherLib;
   var LS_KEY = 'wo.kmaKey';
-  var LS_CITY = 'wo.city';
+  var LS_REGION = 'wo.region';
   var FETCH_TIMEOUT = 12000;
 
-  var isDemo = new URLSearchParams(location.search).get('demo') === '1';
-  var loading = false;
+  var params = new URLSearchParams(location.search);
+  var isDemo = params.get('demo') === '1';
+  var loadSeq = 0;
 
   function $(id) { return document.getElementById(id); }
 
@@ -117,34 +118,31 @@
   // ---------------------------------------------------------------------------
   // 위치
   // ---------------------------------------------------------------------------
-  function fillCitySelect() {
-    var sel = $('citySelect');
-    var gps = document.createElement('option');
-    gps.value = 'gps';
-    gps.textContent = '현재 위치';
-    sel.appendChild(gps);
-    L.CITIES.forEach(function (c) {
-      var o = document.createElement('option');
-      o.value = c.name;
-      o.textContent = c.name;
-      sel.appendChild(o);
-    });
-    sel.addEventListener('change', function () {
-      try {
-        if (sel.value === 'gps') localStorage.removeItem(LS_CITY);
-        else localStorage.setItem(LS_CITY, sel.value);
-      } catch (e) { /* noop */ }
-      load();
-    });
+  var REGIONS = L.buildRegions(window.KR_REGIONS || []);
+  var DEFAULT_REGION_ID = '서울 중구';
+  var demoRegion = null;
+
+  function savedRegion() {
+    try { return L.findRegion(localStorage.getItem(LS_REGION), REGIONS); } catch (e) { return null; }
   }
 
-  function savedCity() {
-    try { return localStorage.getItem(LS_CITY); } catch (e) { return null; }
+  function chooseRegion(r) {
+    closeSearch();
+    if (isDemo) { demoRegion = r; load(); return; }
+    try { localStorage.setItem(LS_REGION, r.id); } catch (e) { /* noop */ }
+    load();
   }
 
-  function cityByName(name) {
-    for (var i = 0; i < L.CITIES.length; i++) if (L.CITIES[i].name === name) return L.CITIES[i];
-    return null;
+  function useGps() {
+    try { localStorage.removeItem(LS_REGION); } catch (e) { /* noop */ }
+    closeSearch();
+    load();
+  }
+
+  // mode: 'gps' | 'manual' | 'fallback'(위치 권한 없음)
+  function setLocationMode(mode) {
+    $('gpsBtn').hidden = isDemo || mode === 'gps';
+    $('searchOpenBtn').textContent = mode === 'fallback' ? '지역 검색' : '다른 지역 보기';
   }
 
   function getGps() {
@@ -158,26 +156,122 @@
     });
   }
 
-  function cityLocation(city, note) {
-    var g = L.latLonToGrid(city.lat, city.lon);
-    $('citySelect').value = city.name;
-    return { nx: g.nx, ny: g.ny, label: city.name + (note ? ' · ' + note : '') };
+  function regionLocation(r, note) {
+    var g = L.latLonToGrid(r.lat, r.lon);
+    return { nx: g.nx, ny: g.ny, label: L.displayName(r) + (note ? ' · ' + note : '') };
   }
 
   function resolveLocation() {
-    var name = savedCity();
-    var city = name && cityByName(name);
-    if (city) return Promise.resolve(cityLocation(city));
+    var saved = savedRegion();
+    if (saved) { setLocationMode('manual'); return Promise.resolve(regionLocation(saved)); }
 
     showLoading('현재 위치를 확인하는 중…');
     return getGps().then(function (c) {
       var g = L.latLonToGrid(c.latitude, c.longitude);
-      var near = L.nearestCity(c.latitude, c.longitude).city;
-      $('citySelect').value = 'gps';
-      return { nx: g.nx, ny: g.ny, label: near.name + ' 근처' };
+      var near = L.nearestRegion(c.latitude, c.longitude, REGIONS);
+      setLocationMode('gps');
+      return { nx: g.nx, ny: g.ny, label: (near ? L.displayName(near) : '현재 위치') + ' 근처' };
     }, function () {
-      return cityLocation(cityByName('서울'), '위치 권한이 없어 도시를 선택해 주세요');
+      setLocationMode('fallback');
+      if ($('searchPanel').hidden) openSearch('', '위치 권한이 없어 서울 날씨를 보여드려요. 지역을 검색해 주세요.', true);
+      return regionLocation(L.findRegion(DEFAULT_REGION_ID, REGIONS), '기본 지역');
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // 지역 검색
+  // ---------------------------------------------------------------------------
+  var results = [];
+  var active = -1;
+
+  function openSearch(query, note, keepFocus) {
+    var input = $('regionInput');
+    input.value = query || '';
+    $('searchNote').textContent = note || '';
+    $('searchNote').hidden = !note;
+    $('searchPanel').hidden = false;
+    renderSuggestions();
+    if (!keepFocus) input.focus();
+  }
+
+  function closeSearch() {
+    $('searchPanel').hidden = true;
+    $('regionInput').setAttribute('aria-expanded', 'false');
+  }
+
+  function hintItem(text) {
+    var li = document.createElement('li');
+    li.className = 'suggestion-hint';
+    li.textContent = text;
+    return li;
+  }
+
+  function renderSuggestions() {
+    var input = $('regionInput');
+    var list = $('suggestions');
+    var q = input.value;
+    results = L.searchRegions(q, REGIONS, 8);
+    active = results.length ? 0 : -1;
+    list.textContent = '';
+
+    if (!q.trim()) list.appendChild(hintItem('예: 광양 · 부산 중구 · 수원 · ㄱㅇ'));
+    else if (!results.length) list.appendChild(hintItem('검색 결과가 없어요'));
+
+    results.forEach(function (r, i) {
+      var li = document.createElement('li');
+      li.className = 'suggestion';
+      li.id = 'sug-' + i;
+      li.setAttribute('role', 'option');
+      var name = document.createElement('b');
+      name.textContent = L.displayName(r);
+      var sub = document.createElement('small');
+      sub.textContent = r.sido + (r.synthetic ? ' · 전체' : '');
+      li.appendChild(name);
+      li.appendChild(sub);
+      // 입력창 포커스(모바일 키보드)를 유지한 채 선택
+      li.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      li.addEventListener('click', function () { chooseRegion(r); });
+      list.appendChild(li);
+    });
+    input.setAttribute('aria-expanded', results.length ? 'true' : 'false');
+    highlight();
+  }
+
+  function highlight() {
+    var items = $('suggestions').querySelectorAll('.suggestion');
+    for (var i = 0; i < items.length; i++) {
+      var on = i === active;
+      items[i].classList.toggle('active', on);
+      items[i].setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on && items[i].scrollIntoView) items[i].scrollIntoView({ block: 'nearest' });
+    }
+    var input = $('regionInput');
+    if (active >= 0) input.setAttribute('aria-activedescendant', 'sug-' + active);
+    else input.removeAttribute('aria-activedescendant');
+  }
+
+  function bindSearch() {
+    var input = $('regionInput');
+    input.addEventListener('input', renderSuggestions);
+    input.addEventListener('keydown', function (e) {
+      if (e.isComposing || e.keyCode === 229) return; // 한글 조합 중
+      if (e.key === 'ArrowDown' && results.length) {
+        e.preventDefault(); active = (active + 1) % results.length; highlight();
+      } else if (e.key === 'ArrowUp' && results.length) {
+        e.preventDefault(); active = (active - 1 + results.length) % results.length; highlight();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (results[active]) chooseRegion(results[active]);
+      } else if (e.key === 'Escape') {
+        closeSearch();
+      }
+    });
+    $('searchOpenBtn').addEventListener('click', function () {
+      if ($('searchPanel').hidden) openSearch('');
+      else closeSearch();
+    });
+    $('searchCloseBtn').addEventListener('click', closeSearch);
+    $('gpsBtn').addEventListener('click', useGps);
   }
 
   // ---------------------------------------------------------------------------
@@ -206,17 +300,22 @@
   }
 
   function load() {
-    if (loading) return;
+    var seq = ++loadSeq;
     var now = new Date();
 
     if (isDemo) {
       var s = window.SampleData.makeSampleResponses(now);
-      $('placeLabel').textContent = s.place + ' · 격자 ' + s.grid.nx + ',' + s.grid.ny;
+      var place = s.place, grid = s.grid;
+      if (demoRegion) {
+        place = L.displayName(demoRegion) + ' (예시)';
+        grid = L.latLonToGrid(demoRegion.lat, demoRegion.lon);
+      }
+      $('placeLabel').textContent = place + ' · 격자 ' + grid.nx + ',' + grid.ny;
       try {
         render(L.buildWeather(
           L.parseResponse(s.ncst), L.parseResponse(s.ultra),
           L.parseResponse(s.vilage), s.early ? L.parseResponse(s.early) : null, now
-        ), { nx: s.grid.nx, ny: s.grid.ny }, now);
+        ), grid, now);
       } catch (e) {
         showError(L.friendlyMessage(e));
       }
@@ -226,18 +325,18 @@
     var key = getKey();
     if (!key) { openSettings(true); return; }
 
-    loading = true;
     var loc;
     resolveLocation().then(function (l) {
+      if (seq !== loadSeq) return null;
       loc = l;
       $('placeLabel').textContent = loc.label + ' · 격자 ' + loc.nx + ',' + loc.ny;
       showLoading();
       return fetchLive(key, loc, now);
     }).then(function (r) {
-      loading = false;
+      if (!r || seq !== loadSeq) return;
       render(L.buildWeather(r[0], r[1], r[2], r[3], now), loc, now);
     }).catch(function (e) {
-      loading = false;
+      if (seq !== loadSeq) return;
       if (window.console) console.warn('[오늘 뭐 입지]', e && (e.detail || e.message));
       showError(L.friendlyMessage(e));
     });
@@ -324,16 +423,20 @@
   // 시작
   // ---------------------------------------------------------------------------
   function init() {
-    fillCitySelect();
     bindSettings();
+    bindSearch();
     $('refreshBtn').addEventListener('click', load);
+    try { localStorage.removeItem('wo.city'); } catch (e) { /* 예전 15개 도시 선택값 정리 */ }
 
     if (isDemo) {
       $('demoBanner').hidden = false;
-      $('citySelect').hidden = true;
+      setLocationMode('manual');
     }
 
     load();
+
+    // 스크린샷용: ?demo=1&q=광 -> 검색창을 열고 추천 목록 표시
+    if (isDemo && params.has('q')) openSearch(params.get('q'), '', true);
 
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       navigator.serviceWorker.register('./sw.js').catch(function () { /* 오프라인 캐시 없이 동작 */ });

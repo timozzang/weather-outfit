@@ -25,9 +25,24 @@
 
     <div class="location">
       <span class="pin">📍</span>
-      <select id="citySelect" aria-label="지역 선택"></select>
       <span id="placeLabel" class="place-label"></span>
+      <span class="location-actions">
+        <button id="searchOpenBtn" class="chip-btn" type="button">다른 지역 보기</button>
+        <button id="gpsBtn" class="chip-btn" type="button" hidden>📍 내 위치로</button>
+      </span>
     </div>
+
+    <section id="searchPanel" class="card search-panel" hidden>
+      <p id="searchNote" class="search-note" hidden></p>
+      <div class="search-box">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input id="regionInput" type="search" inputmode="search" enterkeyhint="search"
+          autocomplete="off" spellcheck="false" placeholder="시·군·구 검색 (예: 광양, 부산 중구, ㄱㅇ)"
+          role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" aria-label="지역 검색">
+        <button id="searchCloseBtn" class="search-close" type="button" aria-label="검색 닫기">✕</button>
+      </div>
+      <ul id="suggestions" class="suggestions" role="listbox" aria-label="검색 결과"></ul>
+    </section>
 
     <section id="status" class="card status" hidden></section>
 
@@ -99,6 +114,7 @@
   <script src="config.js"></script>
   <script src="lib.js"></script>
   <script src="sample-data.js"></script>
+  <script src="regions.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

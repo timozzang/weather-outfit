@@ -73,6 +73,86 @@ test('nearestCity', function () {
 });
 
 // ---------------------------------------------------------------------------
+// 전국 시·군·구 검색
+// ---------------------------------------------------------------------------
+var RAW_REGIONS = require('../regions.js');
+var REGIONS = L.buildRegions(RAW_REGIONS);
+function names(q) { return L.searchRegions(q, REGIONS).map(L.displayName); }
+
+test('regions: 원본 데이터 약 250개 + 상위 시 합성', function () {
+  assert.ok(RAW_REGIONS.length >= 240, String(RAW_REGIONS.length));
+  var suwon = L.findRegion('경기 수원시', REGIONS);
+  assert.ok(suwon && suwon.synthetic);
+  var gu = REGIONS.filter(function (r) { return r.name.indexOf('수원시 ') === 0; });
+  assert.strictEqual(gu.length, 4);
+  var avg = gu.reduce(function (s, r) { return s + r.lat; }, 0) / gu.length;
+  assert.ok(Math.abs(suwon.lat - avg) < 1e-3);
+  ['창원시', '청주시', '포항시', '고양시'].forEach(function (n) {
+    assert.ok(REGIONS.some(function (r) { return r.name === n && r.synthetic; }), n);
+  });
+});
+
+test('search: 광양 / 광양시 / 전남 광양', function () {
+  ['광양', '광양시', '전남 광양', '전라남도 광양', ' 광 양 '].forEach(function (q) {
+    assert.strictEqual(names(q)[0], '광양시', q);
+  });
+});
+
+test('search: 부산 중구', function () {
+  var r = L.searchRegions('부산 중구', REGIONS);
+  assert.strictEqual(r[0].name, '중구');
+  assert.strictEqual(r[0].sidoShort, '부산');
+  assert.strictEqual(L.displayName(r[0]), '부산 중구');
+});
+
+test('search: 초성 ㄱㅇ -> 광양시 포함', function () {
+  assert.ok(names('ㄱㅇ').indexOf('광양시') >= 0, names('ㄱㅇ').join(','));
+  assert.strictEqual(names('광ㅇ')[0], '광양시');
+});
+
+test('search: 수원 -> 수원시 + 모든 수원시 구', function () {
+  var n = names('수원');
+  assert.strictEqual(n[0], '수원시');
+  ['수원시 권선구', '수원시 영통구', '수원시 장안구', '수원시 팔달구'].forEach(function (g) {
+    assert.ok(n.indexOf(g) >= 0, g);
+  });
+});
+
+test('search: 순위 (정확 > 앞부분 > 포함) / limit / 빈 질의', function () {
+  var n = names('중구');
+  assert.ok(n.length >= 6 && n.every(function (x) { return /중구$/.test(x); }), n.join(','));
+  assert.strictEqual(names('팔달')[0], '수원시 팔달구'); // 포함
+  assert.strictEqual(L.searchRegions('광', REGIONS, 3).length, 3);
+  assert.deepStrictEqual(L.searchRegions('   ', REGIONS), []);
+  assert.deepStrictEqual(names('없는지역이름'), []);
+  // 원본 배열을 그대로 넘겨도 동작
+  assert.strictEqual(L.displayName(L.searchRegions('광양', RAW_REGIONS)[0]), '광양시');
+});
+
+test('displayName: 중복 이름은 시도 약칭을 붙인다', function () {
+  var dups = {};
+  RAW_REGIONS.forEach(function (r) { dups[r[0]] = (dups[r[0]] || 0) + 1; });
+  ['중구', '동구', '서구', '남구', '북구', '강서구', '고성군'].forEach(function (n) {
+    assert.ok(dups[n] > 1, n);
+  });
+  assert.strictEqual(L.displayName(L.findRegion('서울 강서구', REGIONS)), '서울 강서구');
+  assert.strictEqual(L.displayName(L.findRegion('부산 강서구', REGIONS)), '부산 강서구');
+  assert.strictEqual(L.displayName(L.findRegion('강원 고성군', REGIONS)), '강원 고성군');
+  assert.strictEqual(L.displayName(L.findRegion('경남 고성군', REGIONS)), '경남 고성군');
+  assert.strictEqual(L.displayName(L.findRegion('대구 동구', REGIONS)), '대구 동구');
+  assert.strictEqual(L.displayName(L.findRegion('전남 광양시', REGIONS)), '광양시');
+  assert.strictEqual(L.displayName(L.findRegion('경북 포항시 남구', REGIONS)), '포항시 남구');
+  assert.strictEqual(L.displayName(L.findRegion('경기 수원시', REGIONS)), '수원시');
+});
+
+test('nearestRegion', function () {
+  assert.strictEqual(L.nearestRegion(34.94, 127.70, REGIONS).name, '광양시');
+  assert.strictEqual(L.nearestRegion(37.52, 127.05, REGIONS).name, '강남구');
+  assert.strictEqual(L.nearestRegion(34.95, 127.49, REGIONS).name, '순천시');
+  assert.strictEqual(L.nearestRegion(37.27, 127.01, RAW_REGIONS).synthetic, undefined);
+});
+
+// ---------------------------------------------------------------------------
 // 발표 시각 (KST)
 // ---------------------------------------------------------------------------
 test('ncst: 40분 전에는 이전 시각', function () {

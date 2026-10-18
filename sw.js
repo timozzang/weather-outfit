@@ -1,5 +1,5 @@
 /* 앱 셸만 캐시한다. 기상청 API(apis.data.go.kr) 등 외부 요청은 절대 캐시하지 않는다. */
-var CACHE = 'wo-shell-v1';
+var CACHE = 'wo-shell-v2';
 var SHELL = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ var SHELL = [
   './config.js',
   './lib.js',
   './sample-data.js',
+  './regions.js',
   './app.js',
   './manifest.json',
   './icons/icon-192.png',
